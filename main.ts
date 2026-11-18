@@ -21,5 +21,14 @@ const width = head.readUInt32BE(16);
 const height = head.readUInt32BE(20);
 if (width > 1024 || height > 1024) throw new Error(`entry.png is ${width}x${height}, over the 1024px cap`);
 
+// PNG integrity: the IHDR chunk must declare no interlacing (the gate reads a
+// whole image, and a type-3 interlace code has tripped other entries), and the
+// final chunk in the file must be IEND so the byte stream is a complete image.
+const interlace = head[28];
+if (interlace !== 0) throw new Error(`entry.png declares interlace method ${interlace}`);
+const tail = readFileSync(src).subarray(size - 12, size);
+const iendMagic = Buffer.from([0x49, 0x45, 0x4e, 0x44]); // 'IEND'
+if (!tail.subarray(4, 8).equals(iendMagic)) throw new Error('entry.png does not end in an IEND chunk');
+
 copyFileSync(src, dst);
-console.log(`wrote ${dst} (${size} bytes, ${width}x${height} PNG)`);
+console.log(`wrote ${dst} (${size} bytes, ${width}x${height} PNG, interlace ${interlace})`);
